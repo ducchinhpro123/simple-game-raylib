@@ -1,0 +1,15 @@
+Language: Cpp
+IndentWidth: 4
+UseTab: Never
+BreakBeforeBraces: Linux
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true
+IndentCaseLabels: false
+ColumnLimit: 120
+AlignAfterOpenBracket: Align
+PointerAlignment: Right
+SpacesBeforeTrailingComments: 2
+SortIncludes: true
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1

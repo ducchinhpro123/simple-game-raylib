@@ -1,0 +1,23 @@
+
+# Ignore all
+*
+
+# Unignore all with extensions
+!*.*
+
+# Unignore all dirs
+!*/
+
+# Ignore object files
+*.o
+
+# Ignore executables without extension
+*
+!*.*
+
+# Ignore specific executables if they have extensions
+*.exe
+*.out
+
+# Unignore specific files if needed
+# !Makefile
