@@ -1,6 +1,6 @@
 #include <math.h>
 #include <raylib.h>
-#include <stdio.h>
+// #include <stdio.h>
 #include <stdlib.h>
 // #include <stdlib.h>
 
@@ -19,7 +19,7 @@
 #define FIXED_TIME_STEP 1.0f / 60.0f
 #define VELOCITY_THRESHOLD 5.0f
 #define POSITION_THRESHOLD 0.1f
-#define NUM_RECTANGLES 3
+#define NUM_RECTANGLES 5
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MAX3(a, b, c) (MAX(MAX(a, b), c))
@@ -27,40 +27,74 @@
 
 #define FPS 60
 
+typedef struct {
+    float x;
+    float y;
+    float velocity;
+    float size;
+} Ball;
+
 int is_on_the_ground(float real_ball_y);
-void accumulator_loop(float *accumulator, float *ball_velocity, float *ball_ps_y, float *ball_ps_x);
+void accumulator_loop(float *accumulator, Ball *ball);
 void ball_jumb(float *ball_velocity);
 Rectangle *create_rectangles();
 
 int main()
 {
-    float ball_velocity = 5.0f;
-    /* ball_ps_y and ball_ps_x basically are two points */
-    float ball_ps_x = WINDOW_WIDTH / 2.0f;
-    float ball_ps_y = WINDOW_HEIGHT / 2.0f;
+    Ball ball;
     float accumulator = 0.0f;
+
+    ball.x = WINDOW_WIDTH / 2.0f;
+    ball.y = WINDOW_HEIGHT / 2.0f;
+    ball.size = BALL_SIZE;
+    ball.velocity = 5.0f;
+
+    Camera2D camera;
+    camera.offset = (Vector2){0, 0};
+    camera.target = (Vector2){0, 0};
+    camera.rotation = 0.0f;
+    camera.zoom = 1.0f;
 
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Simple game with raylib");
     SetTargetFPS(FPS);
 
     while (!WindowShouldClose()) {
         BeginDrawing();
+        BeginMode2D(camera);
 
-        accumulator_loop(&accumulator, &ball_velocity, &ball_ps_y, &ball_ps_x);
+        accumulator_loop(&accumulator, &ball);
 
         ClearBackground(BLACK);
-        DrawCircle((int)ball_ps_x, (int)ball_ps_y, BALL_SIZE, YELLOW);
+        DrawCircle((int)ball.x, (int)ball.y, ball.size, YELLOW);
 
-        DrawText(TextFormat("Velocity: %.2f", ball_velocity), 0, 0, 20, YELLOW);
+        // camera.target = (Vector2){ball.x, ball.y};
 
+        if (ball.x > WINDOW_WIDTH * 0.1) {
+            camera.offset.x = -(ball.x - WINDOW_WIDTH * 0.1);
+        } else if (ball.x < WINDOW_WIDTH * 0.05) {
+            camera.offset.x = -(ball.x - WINDOW_WIDTH * 0.05);
+        }
+        if (camera.offset.x > 0) {
+            camera.offset.x = 0;
+        }
+        // else {
+        //
+        //     camera.target.x = 0;
+        // }
+
+        DrawText(TextFormat("Velocity: %.2f", ball.velocity), 0, 0, 20, YELLOW);
+        // DrawText(TextFormat("ball_x: %.2f", ball_ps_x), 0, 20, 20, YELLOW);
+        // DrawText(TextFormat("ball_y: %.2f", ball_ps_y), 0, 40, 20, YELLOW);
+        // DrawFPS(10, 10);
+
+        EndMode2D();
         EndDrawing();
     }
-    // Set background color
     CloseWindow();
     return 0;
 }
 
-void accumulator_loop(float *accumulator, float *ball_velocity, float *ball_ps_y, float *ball_ps_x)
+void accumulator_loop(float *accumulator, Ball *ball)
 {
     /*
      *          _
@@ -69,59 +103,48 @@ void accumulator_loop(float *accumulator, float *ball_velocity, float *ball_ps_y
      *   * means position x or y, so ball_ps_y + BALL_SIZE would be a real ball
      * with vertical only
      * */
-    float real_ball_y = *ball_ps_y + BALL_SIZE;
-    float real_ball_x = *ball_ps_x + BALL_SIZE;
+    float real_ball_y = ball->y + ball->size;
+    float real_ball_x = ball->x + ball->size;
     float delta_time = GetFrameTime();
     *accumulator += delta_time;
 
+    Rectangle *rectangles = create_rectangles();
+
     while (*accumulator >= FIXED_TIME_STEP) {
-        *ball_velocity += GRAVITY * FIXED_TIME_STEP;
-        *ball_ps_y += *ball_velocity * 0.2f;
-        // *ball_ps_y += *ball_velocity * FIXED_TIME_STEP; // so slow
-
-        // if the ball hit the bottom of the window
-        if (*ball_ps_y + BALL_SIZE > WINDOW_HEIGHT) {
-            *ball_ps_y = WINDOW_HEIGHT - BALL_SIZE;  // ensure the ball hits the bottom of the screen
-            // ball_velocity *= -RESTITUTION;
-
-            // if velocity is below threshold, stop the ball. Prevent always
-            // boucing
-            if (fabs(*ball_velocity) > VELOCITY_THRESHOLD) {
-                *ball_velocity *= -RESTITUTION;  // apply restitution
+        ball->velocity += GRAVITY * FIXED_TIME_STEP;
+        ball->y += ball->velocity * 0.2f;
+        if (ball->y + ball->size > WINDOW_HEIGHT) {
+            ball->y = WINDOW_HEIGHT - ball->size;  // ensure the ball->hits the bottom of the screen
+            if (fabs(ball->velocity) > VELOCITY_THRESHOLD) {
+                ball->velocity *= -RESTITUTION;  // apply restitution
             } else {
-                *ball_velocity = 0;  // rest on the ground
+                ball->velocity = 0;  // rest on the ground
 
-                if (WINDOW_HEIGHT - (*ball_ps_y + BALL_SIZE) < POSITION_THRESHOLD) {
-                    *ball_ps_y = WINDOW_HEIGHT - BALL_SIZE;
+                if (WINDOW_HEIGHT - (ball->y + ball->size) < POSITION_THRESHOLD) {
+                    ball->y = WINDOW_HEIGHT - ball->size;
                 }
             }
         }
 
-        Rectangle *rectangles = create_rectangles();
-
         for (int i = 0; i < NUM_RECTANGLES; i++) {
-            Vector2 ball_position = {*ball_ps_x, *ball_ps_y};
+            Vector2 ball_position = {ball->x, ball->y};
             Rectangle rectangle = rectangles[i];
 
             DrawRectangle(rectangle.x, rectangle.y, RECTANGLE_WIDTH, RECTANGLE_HEIGHT, RED);
 
-            // check if the ball hits the rectangle
-            if (CheckCollisionCircleRec(ball_position, BALL_SIZE, rectangle)) {
-                *ball_ps_y = rectangle.y - BALL_SIZE;  // position the ball on the rectangle
-                // *ball_velocity *= -RESTITUTION;   // apply restitution
-
-                // if velocity is below threshold, stop the ball. Prevent always
-                // boucing
+            // check if the ball->hits the rectangle
+            if (CheckCollisionCircleRec(ball_position, ball->size, rectangle)) {
+                ball->y = rectangle.y - ball->size;  // position the ball->on the rectangle
                 {
-                    if (fabs(*ball_velocity) > VELOCITY_THRESHOLD) {
-                        *ball_velocity *= -RESTITUTION;  // apply restitution
+                    if (fabs(ball->velocity) > VELOCITY_THRESHOLD) {
+                        ball->velocity *= -RESTITUTION;  // apply restitution
                     }
 
                     if ((RECTANGLE_Y - real_ball_y) > POSITION_THRESHOLD) {
-                        // *ball_velocity *= -RESTITUTION;  // apply restitution
-                        *ball_ps_y = rectangle.y - BALL_SIZE;
+                        // ball->velocity *= -RESTITUTION;  // apply restitution
+                        ball->y = rectangle.y - ball->size;
                     } else {
-                        *ball_velocity = 0;
+                        ball->velocity = 0;
                     }
                 }
             }
@@ -129,14 +152,14 @@ void accumulator_loop(float *accumulator, float *ball_velocity, float *ball_ps_y
 
         if (IsKeyPressed(KEY_SPACE)) {
             // *ball_velocity = -200;
-            ball_jumb(ball_velocity);
+            ball_jumb(&ball->velocity);
         }
         if (IsKeyDown(KEY_RIGHT) && real_ball_x < WINDOW_WIDTH) {
-            *ball_ps_x += 10;
+            ball->x += 10;
         }
 
         if (IsKeyDown(KEY_LEFT) && real_ball_x > (BALL_SIZE * 2)) {
-            *ball_ps_x -= 10;
+            ball->x -= 10;
         }
 
         *accumulator -= FIXED_TIME_STEP;
@@ -152,27 +175,26 @@ int is_on_the_ground(float real_ball_y)
 void ball_jumb(float *ball_velocity)
 {
     if (IsKeyPressed(KEY_SPACE)) {
-        *ball_velocity = -200;
+        *ball_velocity = -200.0f;
     }
 }
+
+// float random_float(float min, float max)
+// {
+//     float random = ((float)rand()) / (float)RAND_MAX;
+//     float diff = max - min;
+//     float r = random * diff;
+//     return min + r;
+// }
 
 Rectangle *create_rectangles()
 {
     Rectangle *rectangles = malloc(NUM_RECTANGLES * sizeof(Rectangle));
-
     rectangles[0] = (Rectangle){WINDOW_WIDTH * 0.1, WINDOW_HEIGHT * 0.7, WINDOW_WIDTH * 0.2, WINDOW_HEIGHT * 0.05};
     rectangles[1] = (Rectangle){WINDOW_WIDTH * 0.4, WINDOW_HEIGHT * 0.5, WINDOW_WIDTH * 0.2, WINDOW_HEIGHT * 0.05};
     rectangles[2] = (Rectangle){WINDOW_WIDTH * 0.7, WINDOW_HEIGHT * 0.3, WINDOW_WIDTH * 0.2, WINDOW_HEIGHT * 0.05};
+    rectangles[3] = (Rectangle){WINDOW_WIDTH * 0.9, WINDOW_HEIGHT * 0.7, WINDOW_WIDTH * 0.2, WINDOW_HEIGHT * 0.05};
+    rectangles[4] = (Rectangle){WINDOW_WIDTH * 1.1, WINDOW_HEIGHT * 0.3, WINDOW_WIDTH * 0.2, WINDOW_HEIGHT * 0.05};
 
     return rectangles;
-    // int rectangles_len = ARRAY_LEN(rectangles);
-    // rectangles[0] =
-
-    // float temp = 0.2;
-
-    // for (int i = 0; i < rectangles_len; i++) {
-    //     float step = 0.1 + temp;
-    //     temp = step + 0.2;
-    //     float rect_x = WINDOW_WIDTH * rectangles[i] =
-    // }
 }
